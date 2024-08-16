@@ -1,0 +1,7 @@
+<launch>
+    <include file="$(find easy_handeye)/launch/publish.launch">
+        <arg name="eye_on_hand" value="true"/>
+        <arg name="namespace_prefix" value="calibrate_rs"/>
+        <arg name="calibration_file" value="/home/manas/.ros/easy_handeye/calibrate_rs_eye_on_hand.yaml"/>
+    </include>
+</launch>
