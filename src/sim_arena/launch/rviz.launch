@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Publish Hand-Eye Calibration Results -->
+  <arg name="rviz_config" default="$(find ur5_moveit_config)/launch/moveit.rviz" />
+
+  <!-- Launch MoveIt Planning and Execution -->
+  <include file="$(find ur5_moveit_config)/launch/moveit_planning_execution.launch"/>
+
+  <!-- Launch RViz with MoveIt Configuration -->
+  <include file="$(find ur5_moveit_config)/launch/moveit_rviz.launch"/>
+
+  <!-- Launch RealSense Camera -->
+
+  <!-- Launch ArUco Marker Detection Node -->
+  <include file="$(find easy_handeye)/launch/publish_rs.launch"/>
+  <!-- Visualization Markers in RViz -->
+  </launch>

@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="rviz_config" default="$(find ur5_moveit_config)/launch/moveit.rviz" />
+   <include file="$(find easy_handeye)/launch/ur5_calibrate.launch"/>
+  <!-- 启动movegroup等 -->
+  <include file="$(find ur5_moveit_config)/launch/moveit_planning_execution.launch">
+  </include>
+  <!-- 启动rviz&moveit GUI 节点 -->
+  <include file="$(find ur5_moveit_config)/launch/moveit_rviz.launch">
+  </include>
+  <include file="$(find arena_camera)/launch/arena_camera_node.launch">
+  </include>
+</launch>

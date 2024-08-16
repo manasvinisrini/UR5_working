@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="rviz_config" default="$(find ur_ur_gripper_moveit_config/launch/moveit.rviz" />
+
+  <!-- 启动movegroup等 -->
+  <include file="$(find ur5_moveit_config)/launch/moveit_planning_execution.launch">
+  </include>
+  <!-- 启动rviz&moveit GUI 节点 -->
+  <include file="$(find ur5_moveit_config)/launch/moveit_rviz.launch">
+  
+  </include>
+  <arg name="markerId" default="584"/>
+  <arg name="markerSize" default="0.1"/> <!-- in meters -->
+  <arg name="marker_frame" default="aruco_marker_frame"/>
+  <arg name="ref_frame" default=""/> <!-- leave empty to use the default reference frame -->
+  <arg name="corner_refinement" default="LINES"/> <!-- NONE, HARRIS, LINES, SUBPIX -->
+
+  <node pkg="aruco_ros" type="single" name="aruco_single">
+      <remap from="/camera_info" to="/arena_camera_node/camera_info"/>
+      <remap from="/image" to="/arena_camera_node/image_raw"/>
+      <param name="image_is_rectified" value="True"/>
+      <param name="marker_size" value="$(arg markerSize)"/>
+      <param name="marker_id" value="$(arg markerId)"/>
+      <param name="reference_frame" value="$(arg ref_frame)"/> <!-- frame in which the marker pose will be referred -->
+      <param name="camera_frame" value="arena_camera"/> <!-- Correct camera frame -->
+      <param name="marker_frame" value="$(arg marker_frame)"/>
+      <param name="corner_refinement" value="$(arg corner_refinement)"/>
+  </node>
+</launch>
