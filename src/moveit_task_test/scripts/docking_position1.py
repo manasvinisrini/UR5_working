@@ -26,12 +26,12 @@ class MoveRobotNode():
 
         # Define home position joint values for UR5
         joint_goal = move_group.get_current_joint_values()
-        joint_goal[0] = -0.011493984852926076 #shoulder_pan_joint
-        joint_goal[1] = -1.6462104956256312 #shoulder_lift_joint
-        joint_goal[2] = -1.5537245909320276 #elbow_joint
-        joint_goal[3] = 0.06449270248413086 #wrist_1
-        joint_goal[4] = 1.5493385791778564 #wrist_2
-        joint_goal[5] = -0.05046254793276006 #wrist_3
+        joint_goal[0] =  0.17425063252449036 #shoulder_pan_joint
+        joint_goal[1] = -1.801938835774557 #shoulder_lift_joint
+        joint_goal[2] = -1.22036773363222 #elbow_joint
+        joint_goal[3] = -0.811413590108053 #wrist_1
+        joint_goal[4] =  1.560948371887207 #wrist_2
+        joint_goal[5] = 0.18491435050964355 #wrist_3
 
         # Move to the joint goal
         success = move_group.go(joint_goal, wait=True)

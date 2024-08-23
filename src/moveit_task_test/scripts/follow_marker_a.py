@@ -8,6 +8,28 @@ import geometry_msgs.msg
 from visualization_msgs.msg import Marker
 import math
 import time
+import copy
+
+def rotate_pose_by_rpy(in_pose, roll, pitch, yaw):
+    """
+    Apply an RPY (Roll, Pitch, Yaw) rotation to a pose in its parent coordinate system.
+    This function takes an input pose, applies the specified roll, pitch, and yaw rotations,
+    and returns the resulting pose with the updated orientation.
+    """
+    # Extract the quaternion from the input pose
+    q_in = [in_pose.orientation.x, in_pose.orientation.y, in_pose.orientation.z, in_pose.orientation.w]
+    
+    # Create a quaternion representing the desired RPY rotation
+    q_rot = tf.transformations.quaternion_from_euler(roll, pitch, yaw)
+    
+    # Combine the input quaternion with the rotation quaternion
+    q_rotated = tf.transformations.quaternion_multiply(q_in, q_rot)
+
+    # Create a new pose with the updated orientation
+    rotated_pose = copy.deepcopy(in_pose)
+    rotated_pose.orientation = geometry_msgs.msg.Quaternion(*q_rotated)
+    
+    return rotated_pose
 
 class MoveToMarkerWithOMPL:
     """Move the robot to an ArUco marker using OMPL planner, keeping the orientation constant."""
@@ -26,7 +48,7 @@ class MoveToMarkerWithOMPL:
 
         # Set the planner ID to OMPL's RRTConnect
         self.group.set_planner_id("RRTConnectkConfigDefault")
-        self.group.set_planning_time(5)  # Reduced from 10s to 5s
+        self.group.set_planning_time(10)  # Reduced from 10s to 5s
         self.tf_listener = tf.TransformListener()
 
         rospy.Subscriber('/aruco_single/pose', geometry_msgs.msg.PoseStamped, self.marker_pose_callback)
@@ -36,7 +58,7 @@ class MoveToMarkerWithOMPL:
         self.transformed_pose = None
 
         # New gripper offsets
-        self.x_offset = 0.290  # Adjust this value as needed
+        self.x_offset = 0.202 # Adjust this value as needed
         self.y_offset = 0.00   # Adjust this value as needed
         self.z_offset = 0.00   # Adjust this value as needed
 
@@ -77,6 +99,9 @@ class MoveToMarkerWithOMPL:
         # Ensure the orientation is set correctly
         if self.transformed_pose:
             target_pose.orientation = self.transformed_pose.pose.orientation
+
+            # Apply additional RPY rotation if needed
+            target_pose = rotate_pose_by_rpy(target_pose, math.pi, 0, 0)                                                      # Example rotation: 180 degrees around the X-axis
         else:
             # If for some reason transformed_pose is not set, use current robot orientation
             current_pose = self.group.get_current_pose().pose
@@ -90,15 +115,15 @@ class MoveToMarkerWithOMPL:
             (current_pose.position.z - target_pose.position.z) ** 2
         )
 
-        if distance < 0.01:  # Adjust the threshold as needed
+        if distance < 0.3:  # Adjust the threshold as needed
             rospy.loginfo("Attempting incremental movement...")
             if not self.move_incrementally(current_pose, target_pose):
                 rospy.logwarn("Failed to execute incremental movement. Moving to fallback position.")
                 self.move_to_fallback_position()
         else:
             # Set goal tolerances
-            # self.group.set_goal_position_tolerance(0.01)
-            # self.group.set_goal_orientation_tolerance(0.05)  # Slightly relaxed for better performance
+            self.group.set_goal_position_tolerance(0.01)
+            self.group.set_goal_orientation_tolerance(0.05)  # Slightly relaxed for better performance
 
             # Set the target pose
             self.group.set_pose_target(target_pose)
@@ -120,10 +145,10 @@ class MoveToMarkerWithOMPL:
                     rospy.logwarn("Failed to create a valid plan. Retrying...")
 
                 # Check if fallback time has been exceeded
-                if time.time() - start_time > self.fallback_time:
-                    rospy.logwarn("Planning time exceeded. Moving to fallback position.")
-                    self.move_to_fallback_position()
-                    break
+                # if time.time() - start_time > self.fallback_time:
+                #     rospy.logwarn("Planning time exceeded. Moving to fallback position.")
+                #     self.move_to_fallback_position()
+                #     break
 
     def move_incrementally(self, current_pose, target_pose):
         waypoints = [current_pose, target_pose]

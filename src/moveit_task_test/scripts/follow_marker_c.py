@@ -8,6 +8,28 @@ import geometry_msgs.msg
 from visualization_msgs.msg import Marker
 import math
 import time
+import copy
+
+def rotate_pose_by_rpy(in_pose, roll, pitch, yaw):
+    """
+    Apply an RPY (Roll, Pitch, Yaw) rotation to a pose in its parent coordinate system.
+    This function takes an input pose, applies the specified roll, pitch, and yaw rotations,
+    and returns the resulting pose with the updated orientation.
+    """
+    # Extract the quaternion from the input pose
+    q_in = [in_pose.orientation.x, in_pose.orientation.y, in_pose.orientation.z, in_pose.orientation.w]
+    
+    # Create a quaternion representing the desired RPY rotation
+    q_rot = tf.transformations.quaternion_from_euler(roll, pitch, yaw)
+    
+    # Combine the input quaternion with the rotation quaternion
+    q_rotated = tf.transformations.quaternion_multiply(q_in, q_rot)
+
+    # Create a new pose with the updated orientation
+    rotated_pose = copy.deepcopy(in_pose)
+    rotated_pose.orientation = geometry_msgs.msg.Quaternion(*q_rotated)
+    
+    return rotated_pose
 
 class MoveToMarkerWithOMPL:
     """Move the robot to an ArUco marker using OMPL planner, keeping the orientation constant."""
@@ -26,7 +48,8 @@ class MoveToMarkerWithOMPL:
 
         # Set the planner ID to OMPL's RRTConnect
         self.group.set_planner_id("RRTConnectkConfigDefault")
-        self.group.set_planning_time(5)  # Reduced from 10s to 5s
+        self.group.set_planning_time(10)  # Planning time
+
         self.tf_listener = tf.TransformListener()
 
         rospy.Subscriber('/aruco_single/pose', geometry_msgs.msg.PoseStamped, self.marker_pose_callback)
@@ -35,10 +58,10 @@ class MoveToMarkerWithOMPL:
         self.marker_pose = None
         self.transformed_pose = None
 
-        # New gripper offsets
-        self.x_offset = 0.290  # Adjust this value as needed
-        self.y_offset = 0.00   # Adjust this value as needed
-        self.z_offset = 0.00   # Adjust this value as needed
+        # Gripper offsets
+        self.x_offset = 0.220 # Adjust this value as needed
+        self.y_offset = 0.00# Adjust this value as needed
+        self.z_offset = 0.00 # Adjust this value as needed
 
         # Home joint positions
         self.home_joint_positions = [-0.027286354695455373, -0.269754711781637, -1.7435172239886683, -1.1397526899920862, 1.6361838579177856, -0.05274373689760381]
@@ -77,63 +100,41 @@ class MoveToMarkerWithOMPL:
         # Ensure the orientation is set correctly
         if self.transformed_pose:
             target_pose.orientation = self.transformed_pose.pose.orientation
+
+            # Apply additional RPY rotation if needed
+            target_pose = rotate_pose_by_rpy(target_pose, math.pi, 0, 0) 
+            
         else:
             # If for some reason transformed_pose is not set, use current robot orientation
             current_pose = self.group.get_current_pose().pose
             target_pose.orientation = current_pose.orientation
 
-        # Calculate the Euclidean distance between the current and target pose
-        current_pose = self.group.get_current_pose().pose
-        distance = math.sqrt(
-            (current_pose.position.x - target_pose.position.x) ** 2 +
-            (current_pose.position.y - target_pose.position.y) ** 2 +
-            (current_pose.position.z - target_pose.position.z) ** 2
-        )
+        # self.group.set_goal_position_tolerance(0.01)
+        # self.group.set_goal_orientation_tolerance(0.05)
+        # Set the target pose
+        self.group.set_pose_target(target_pose)
 
-        if distance < 0.01:  # Adjust the threshold as needed
-            rospy.loginfo("Attempting incremental movement...")
-            if not self.move_incrementally(current_pose, target_pose):
-                rospy.logwarn("Failed to execute incremental movement. Moving to fallback position.")
+        # Start the timer
+        start_time = time.time()
+
+        while True:
+            # Plan the motion using OMPL
+            plan = self.group.plan()
+
+            # Check if the plan is valid
+            if plan and plan[0]:
+                rospy.loginfo("Executing plan...")
+                self.group.execute(plan[1], wait=True)
+                rospy.loginfo("Plan executed successfully.")  # Sleep for 5 seconds after execution
+                break
+            else:
+                rospy.logwarn("Failed to create a valid plan. Retrying...")
+
+            # Check if fallback time has been exceeded
+            if time.time() - start_time > self.fallback_time:
+                rospy.logwarn("Planning time exceeded. Moving to fallback position.")
                 self.move_to_fallback_position()
-        else:
-            # Set goal tolerances
-            # self.group.set_goal_position_tolerance(0.01)
-            # self.group.set_goal_orientation_tolerance(0.05)  # Slightly relaxed for better performance
-
-            # Set the target pose
-            self.group.set_pose_target(target_pose)
-
-            # Start the timer
-            start_time = time.time()
-
-            while True:
-                # Plan the motion using OMPL
-                plan = self.group.plan()
-
-                # Check if the plan is valid
-                if plan and plan[0]:
-                    rospy.loginfo("Executing plan...")
-                    self.group.execute(plan[1], wait=True)
-                    rospy.loginfo("Plan executed successfully.")
-                    break
-                else:
-                    rospy.logwarn("Failed to create a valid plan. Retrying...")
-
-                # Check if fallback time has been exceeded
-                if time.time() - start_time > self.fallback_time:
-                    rospy.logwarn("Planning time exceeded. Moving to fallback position.")
-                    self.move_to_fallback_position()
-                    break
-
-    def move_incrementally(self, current_pose, target_pose):
-        waypoints = [current_pose, target_pose]
-        (plan, fraction) = self.group.compute_cartesian_path(waypoints, 0.01, 0.0)  # Smaller steps
-        if fraction > 0.9:  # If the path is mostly valid
-            self.group.execute(plan, wait=True)
-            rospy.loginfo("Incremental movement executed successfully.")
-            return True
-        else:
-            return False
+                break
 
     def move_to_home_position(self):
         rospy.loginfo("Moving to home position...")
